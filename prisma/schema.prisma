@@ -1,0 +1,171 @@
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+    output = "/home/ubuntu/dnd_multiplayer_app/nextjs_space/node_modules/.prisma/client"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+// Campaign/Room Management
+model Campaign {
+  id            String        @id @default(cuid())
+  name          String
+  roomCode      String        @unique
+  dmName        String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  players       Player[]
+  gameState     GameState?
+  monsters      Monster[]
+  items         Item[]
+  combatState   CombatState?
+}
+
+// Player/Character Management
+model Player {
+  id            String        @id @default(cuid())
+  campaignId    String
+  campaign      Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  socketId      String?       // Current websocket connection
+  isConnected   Boolean       @default(true)
+  joinedAt      DateTime      @default(now())
+  character     Character?
+  
+  @@index([campaignId])
+}
+
+model Character {
+  id            String        @id @default(cuid())
+  playerId      String        @unique
+  player        Player        @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  name          String
+  class         String
+  level         Int           @default(1)
+  xp            Int           @default(0)
+  hp            Int
+  maxHp         Int
+  ac            Int
+  speed         Int           @default(30)
+  
+  // Ability scores
+  str           Int           @default(10)
+  dex           Int           @default(10)
+  con           Int           @default(10)
+  int           Int           @default(10)
+  wis           Int           @default(10)
+  cha           Int           @default(10)
+  
+  tokenImage    String?       // Base64 or URL
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  attacks       Attack[]
+  spells        Spell[]
+  inventory     InventoryItem[]
+}
+
+model Attack {
+  id            String        @id @default(cuid())
+  characterId   String
+  character     Character     @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  name          String
+  toHit         Int
+  damage        String        // e.g., "1d8+3"
+  
+  @@index([characterId])
+}
+
+model Spell {
+  id            String        @id @default(cuid())
+  characterId   String
+  character     Character     @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  name          String
+  damage        String
+  slots         Int
+  slotsUsed     Int           @default(0)
+  
+  @@index([characterId])
+}
+
+model InventoryItem {
+  id            String        @id @default(cuid())
+  characterId   String
+  character     Character     @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  name          String
+  createdAt     DateTime      @default(now())
+  
+  @@index([characterId])
+}
+
+// Game State Management
+model GameState {
+  id            String        @id @default(cuid())
+  campaignId    String        @unique
+  campaign      Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  
+  encounterName String        @default("New Encounter")
+  mapImage      String?       // Base64 or URL
+  gridSize      Int           @default(50)
+  showGrid      Boolean       @default(true)
+  notes         String?       @default("")
+  combatActive  Boolean       @default(false)
+  currentTurn   Int           @default(0)
+  
+  updatedAt     DateTime      @updatedAt
+}
+
+// Monsters in the encounter
+model Monster {
+  id            String        @id @default(cuid())
+  campaignId    String
+  campaign      Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  
+  name          String
+  hp            Int
+  maxHp         Int
+  ac            Int
+  damage        String        // e.g., "1d6"
+  xp            Int           @default(50)
+  loot          String?
+  
+  x             Float
+  y             Float
+  hidden        Boolean       @default(true)
+  
+  createdAt     DateTime      @default(now())
+  
+  @@index([campaignId])
+}
+
+// Items/Loot in the encounter
+model Item {
+  id            String        @id @default(cuid())
+  campaignId    String
+  campaign      Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  
+  name          String
+  type          String        // chest, barrel, crate, scroll, potion
+  contents      String?
+  discovered    Boolean       @default(false)
+  
+  x             Float
+  y             Float
+  
+  createdAt     DateTime      @default(now())
+  
+  @@index([campaignId])
+}
+
+// Combat Initiative Tracking
+model CombatState {
+  id            String        @id @default(cuid())
+  campaignId    String        @unique
+  campaign      Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  
+  initiativeOrder Json        // Array of {id, name, initiative, type, hp?, maxHp?}
+  combatLog     Json          // Array of {message, timestamp}
+  
+  updatedAt     DateTime      @updatedAt
+}
