@@ -2,6 +2,7 @@
   "name": "app",
   "private": true,
   "scripts": {
+    "postinstall": "prisma generate || true",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
